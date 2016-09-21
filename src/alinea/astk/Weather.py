@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from alinea.astk.TimeControl import *
 from alinea.astk.meteorology.sun_position import sun_position
 import alinea.astk.sun_and_sky as sunsky
+reload(sunsky)
 
 
 def septo3d_reader(data_file):
@@ -82,6 +83,7 @@ def linear_degree_days(data, start_date=None, base_temp=0., max_temp=35.):
     if isinstance(start_date, str):
         start_date = pandas.to_datetime(start_date, utc=True)
     return dd - dd[df.index.searchsorted(start_date)]
+
 
 
 class Weather(object):
@@ -204,6 +206,7 @@ class Weather(object):
         return sun_position(seq, timezone='utc')
 
     def light_sources(self, seq, what='global_radiation'):
+
         """ return direct and diffuse ligh sources representing the sky and the sun
          for a given time period indicated by seq
          Irradiance are accumulated over the whole time period and multiplied by the duration of the period (second) and by scale
@@ -220,6 +223,7 @@ class Weather(object):
                                  dates=seq)
         sun = sunsky.sun_sources(irradiance=None, dates=seq, latitude=latitude,
                                  longitude=longitude)
+
         return sun, sky
 
     def daylength(self, seq):
