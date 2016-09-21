@@ -3,6 +3,7 @@
 
 import pandas
 
+import alinea.astk.Weather as W ; reload(W)
 from alinea.astk.Weather import Weather
 import openalea.plantgl.all as pgl
 
@@ -46,10 +47,18 @@ def azel2vect(az, el, north=0):
   v.normalize()
   return v
 
-for one_day in weather.date_range_index('2002-12-02','2002-12-15'):
+sky_positions =sunsky.sky_discretisation()
+for one_day in weather.date_range_index('2002-09-02','2002-09-15'):
   # sun/sky for one day
   #see weather.date_range_index for generating a list of days
-  sun, sky, = weather.light_sources(one_day, 'PPFD', irradiance='normal', scale=1e-6)
+  sun_irradiance, sky_irradiance = weather.sun_sky(one_day)
+  sun_positions = weather.sun_positions(one_day)
+  incident_energy = lighting.incident_light(model, mango, sun_positions, sun_irradiance
+                                             , sky_positions,
+                   sky_irradiance, sky_type='soc', use_clear_sky=False,
+                   source_type='normal')
+
+  #sun, sky, = weather.light_sources(one_day, 'PPFD', irradiance='normal', scale=1e-6)
   # sun and sky irradiance are in mol.m-2 (PPFD in micromol.m-2.s-1 * dt (s) * scale)
   print one_day[0],
   print len(sun['irradiance'])
@@ -58,5 +67,5 @@ for one_day in weather.date_range_index('2002-12-02','2002-12-15'):
 
   res = directionalInterception(mango, directions, azel2vect = azel2vect)
 
-  #print res
+  print res
 
