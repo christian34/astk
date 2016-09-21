@@ -13,6 +13,7 @@ from math import exp
 
 from alinea.astk.TimeControl import *
 import alinea.astk.sun_and_sky as sunsky
+reload(sunsky)
 
 
 def septo3d_reader(data_file):
@@ -97,10 +98,10 @@ def diffuse_fraction(data, localisation):
     """
     heureTU = data.index.hour + data.index.minute / 60.
     DOY = data.index.dayofyear
+    year = data.index.year
+    sun_elevation, _ = sunsky.sun_position(heureTU, DOY, year, localisation['longitude'],localisation['latitude'])
     Rg = data['global_radiation']
-    rdrs = sunsky.diffuse_fraction(Rg, heureTU, DOY,
-                                   longitude=localisation['longitude'],
-                                   latitude=localisation['latitude'])
+    rdrs = sunsky.diffuse_fraction(Rg, DOY, sun_elevation)
     return rdrs
 
 
@@ -238,6 +239,24 @@ class Weather(object):
             hUTC, dayofyear, longitude, latitude, 'horizontal')
         return data
 
+    def astronomical_coordinates(self, seq):
+        hUTC = seq.hour + seq.minute / 60.
+        dayofyear = seq.dayofyear
+        latitude = self.localisation['latitude']
+        longitude = self.localisation['longitude']
+        year = seq.year
+
+        return hUTC, dayofyear, year, latitude, longitude
+
+    def sun_sky_irradiances(self, seq, what='global_radiation',scale=1):
+
+        self.check([what, 'diffuse_fraction'], args={
+            'diffuse_fraction': {'localisation': self.localisation}})
+        data = self.get_weather(seq)
+        sun_irradiance = data[what] * (1 - data['diffuse_fraction']) * scale
+        sky_irradiance = data[what] * data['diffuse_fraction'] * scale
+        return sun_irradiance, sky_irradiance
+
     def light_sources(self, seq, what='global_radiation', sky='turtle46',
                       azimuth_origin='North', irradiance='horizontal',
                       scale=1e-6):
@@ -257,10 +276,11 @@ class Weather(object):
 
         hUTC = data.index.hour + data.index.minute / 60.
         dayofyear = data.index.dayofyear
-        sun_elevation = sunsky.sun_elevation(hUTC, dayofyear, longitude,
+        year = data.index.year
+        sun_positions = sunsky.sun_position(hUTC, dayofyear, year, longitude,
                                              latitude)
-        sun_azimuth = sunsky.sun_azimuth(hUTC, dayofyear, longitude, latitude,
-                                         origin=azimuth_origin)
+        sun_elevation, sun_azimuth = sun_positions
+
         sun_irradiance = data[what] * (
         1 - data['diffuse_fraction']) * dt * scale
 
