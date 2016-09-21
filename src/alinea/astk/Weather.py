@@ -86,6 +86,7 @@ def linear_degree_days(data, start_date=None, base_temp=0., max_temp=35.):
 
 
 
+
 class Weather(object):
     """ Class compliying echap local_microclimate model protocol (meteo_reader).
         expected variables of the data_file are:
@@ -206,6 +207,7 @@ class Weather(object):
         return sun_position(seq, timezone='utc')
 
     def light_sources(self, seq, what='global_radiation'):
+
 
         """ return direct and diffuse ligh sources representing the sky and the sun
          for a given time period indicated by seq
