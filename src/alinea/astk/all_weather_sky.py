@@ -102,7 +102,7 @@ def all_weather_sky(irradiances):
 
     """
 
-    df = irradiances.loc[:,['UTC', 'azimuth', 'apparent_zenith', 'apparent_elevation']]
+    df = irradiances.loc[:,['UTC', 'ghi', 'azimuth', 'apparent_zenith', 'apparent_elevation']]
     dni = irradiances['dni']
     dhi = irradiances['dhi']
     z = numpy.radians(irradiances['apparent_zenith'])
@@ -192,7 +192,7 @@ def aw_parameters(sun_elevation, clearness, brightness):
     return a, b, c, d, e
 
 
-def relative_luminance(theta=0, phi=0, aw_sky):
+def relative_luminance(theta, phi, aw_sky):
     """ Relative luminance of a sky element
 
     Args:
@@ -215,3 +215,7 @@ def relative_luminance(theta=0, phi=0, aw_sky):
     1 + c * numpy.exp(d * gamma) + e * numpy.cos(gamma) ** 2)
 
 
+def relative_irradiance(theta, phi, aw_sky):
+    el = numpy.radians(aw_sky['apparent_elevation'].values)
+    rlum = relative_luminance(theta, phi, aw_sky)
+    return rlum * numpy.sin(el)
