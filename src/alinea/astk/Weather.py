@@ -54,6 +54,7 @@ def global_to_PPFD(data):
     in PAR (ppfd in micromol.m-2.sec-1)
     1 WattsPAR.m-2 = 4.6 ppfd, 1 Wglobal = 0.48 WattsPAR)
     """
+    # TO DO : correct for rd/rs
     Rg = data[['global_radiation']].values
     return Rg * 0.48 * 4.6
 
