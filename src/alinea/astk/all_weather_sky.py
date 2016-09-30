@@ -204,6 +204,8 @@ def relative_luminance(theta, phi, aw_sky):
         the relative luminance
 
     """
+    if numpy.cos(theta) <= 0:
+        return numpy.array([0] * len(aw_sky))
     a, b, c, d, e = map(numpy.array, zip(*aw_sky['parameters']))
     az = numpy.radians(aw_sky['azimuth'])
     el = numpy.radians(aw_sky['apparent_elevation'])
@@ -216,6 +218,8 @@ def relative_luminance(theta, phi, aw_sky):
 
 
 def relative_irradiance(theta, phi, aw_sky):
-    el = numpy.radians(aw_sky['apparent_elevation'].values)
-    rlum = relative_luminance(theta, phi, aw_sky)
-    return rlum * numpy.sin(el)
+    if numpy.cos(theta) <= 0:
+        return numpy.array([0] * len(aw_sky))
+    if numpy.sin(theta) == 0:
+        return relative_luminance(theta, phi, aw_sky)
+    return relative_luminance(theta, phi, aw_sky) / numpy.sin(theta)

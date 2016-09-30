@@ -17,6 +17,7 @@
 from alinea.astk.icosphere import turtle_dome, sample_faces, display
 from alinea.astk.all_weather_sky import clear_sky_irradiances, all_weather_sky, relative_irradiance
 from alinea.astk.colormap import jet_colors
+import numpy
 
 class SkyTurtle(object):
     """ A class interface to 'turtle' sky representation
@@ -38,7 +39,15 @@ class SkyTurtle(object):
         irr_t = [relative_irradiance(t, p, sky) for t, p in directions]
         total_irr_t = map(sum, zip(*irr_t))
         irradiances = [sum(it / total_irr_t * sky['ghi']) for it in irr_t]
-        return directions, irradiances, tags
+        order = numpy.argsort(tags)
+        return directions, irradiances, tags, order
+
+    def sample_luminances(self, iter=None, sky_irradiances=None):
+        directions, irradiances, tags, order = self.sample_irradiances(iter, sky_irradiances)
+        theta, phi = zip(*directions)
+        sint = numpy.where(numpy.sin(theta) == 0, 1, numpy.sin(theta))
+        return directions, irradiances / sint, tags, order
+
 
     def display(self, property=None):
         colors = None

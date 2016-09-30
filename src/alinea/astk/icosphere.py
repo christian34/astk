@@ -49,19 +49,23 @@ def display(vertices, faces, colors=None, view=True):
     """
     global display_enable
     if display_enable:
+        scene = pgl.Scene()
         if colors is None:
             shape = pgl.Shape(pgl.FaceSet(pointList=vertices, indexList=faces))
+            scene += shape
         else:
-            shape = pgl.Shape(pgl.FaceSet(pointList=vertices, indexList=faces))
-            shape.colorPerVertex = True
-            shape.colorList = [pgl.Color4(r, g, b, 0) for r, g, b in colors]
-
+            for i,face in enumerate(faces):
+                vtx = [vertices[v] for v in face]
+                idx = range(len(face))
+                mat = pgl.Material(pgl.Color3(*colors[i]))
+                shape = pgl.Shape(pgl.FaceSet(pointList=vtx, indexList=[idx]), mat)
+                scene += shape
         if view:
-            pgl.Viewer.display(shape)
+            pgl.Viewer.display(scene)
     else:
         warnings.warn('PlantGL not installed: display is not enable!')
         shape = None
-    return shape
+    return scene
 
 
 def normed(point):
