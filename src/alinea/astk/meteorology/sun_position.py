@@ -6,7 +6,7 @@
 #       See accompanying file LICENSE.txt or copy at
 #           http://www.cecill.info/licences/Licence_CeCILL-C_V1-en.html
 #
-#       WebSite : https://github.com/openalea-incubator/astk
+#       WebSite : https://github.com/openalea-incubator/astk/meteorology
 #
 #       File author(s): Christian Fournier <Christian.Fournier@supagro.inra.fr>
 #
@@ -15,7 +15,7 @@
 """ Astronomical equation for determining sun position
 
     Prefered way of getting sun position is to use dedicated package such as
-    pvlib or pyephem.
+    pvlib or ephem.
     If not available, older, less acccurate (no atmospheric refraction,
     approx formulae), but pure python function are provided
 """
@@ -24,24 +24,23 @@ import numpy
 import pandas
 import datetime
 
-
-prefered = 'pvlib'
+pvlib_installed = True
 try:
     from pvlib.solarposition import get_solarposition
 except ImportError:
-    warnings.warn('pvlib not found on your system, it is strongly recomended '
-                  'to install for better accuracy of sun position')
-    prefered = 'ephem'
+    warnings.warn('pvlib not found on your system, sun positions '
+                  'may be less accurate')
+    pvlib_installed = False
 
+ephem_installed = True
 try:
     import ephem
 except ImportError:
-    warnings.warn('ephem not found on your system, it is strongly recomended '
-                  'to install for better accuracy of sun position')
-    if prefered == 'ephem':
-        prefered = 'astk'
+    warnings.warn('ephem not found on your system, sun positions '
+                  'may be less accurate')
+    ephem_installed = False
 
-# default
+# default location and dates
 _day = '2000-06-21'
 _dates = pandas.date_range(_day, periods=24, freq='H')
 _timezone = 'Europe/Paris'
@@ -285,7 +284,7 @@ def ephem_sun_position(hUTC, dayofyear, year, latitude, longitude):
 
 
 def sun_position(dates=_dates, latitude=_latitude, longitude=_longitude,
-                 altitude=_altitude, timezone=_timezone, method=prefered):
+                 altitude=_altitude, timezone=_timezone, method='pvlib'):
     """ Sun position
 
     Args:
@@ -297,6 +296,8 @@ def sun_position(dates=_dates, latitude=_latitude, longitude=_longitude,
         timezone: a string identifying the timezone to be associated to dates if
         dates is not already localised (default association  to UTC).
         This args is not used if dates are already localised
+        method: (strin) the mmethod to use. default uses pvlib. other methods are
+        'ephem' (using ephem package) or 'astk' (using this module)
 
     Returns:
         a pandas dataframe with sun position at requested dates indexed by
@@ -308,11 +309,15 @@ def sun_position(dates=_dates, latitude=_latitude, longitude=_longitude,
     else:
         times = dates
 
+    sunpos = None
+
     if method == 'pvlib':
         df = get_solarposition(times, latitude, longitude,
                                                  altitude)
-        #df['UTC'] = times.tz_convert('UTC')
-        return df.loc[df['apparent_elevation'] > 0, :]
+        sunpos = pandas.DataFrame({'elevation' : df['apparent_elevation'],
+                                  'azimuth' : df['azimuth'],
+                                  'zenith' : df['apparent_zenith']},
+                                  index = df.index)
     elif method == 'ephem':
         d = times.tz_convert('UTC')
         hUTC = d.hour + d.minute / 60.
@@ -320,19 +325,26 @@ def sun_position(dates=_dates, latitude=_latitude, longitude=_longitude,
         year = d.year
         fun = numpy.frompyfunc(ephem_sun_position, 5, 2)
         alt, az = fun(hUTC, dayofyear, year, latitude, longitude)
-        return alt.astype(float), az.astype(float)
-    else:
+        sunpos = pandas.DataFrame({'elevation' : alt.astype(float),
+                                  'azimuth' : az.astype(float)},
+                                  index = times)
+        sunpos['zenith'] = 90 - sunpos['elevation']
+    elif method == 'astk':
         d = times.tz_convert('UTC')
         hUTC = d.hour + d.minute / 60.
         dayofyear = d.dayofyear
         year = d.year
-        return sun_elevation(hUTC, dayofyear, year, latitude, longitude),\
-                sun_azimuth(hUTC, dayofyear, year, latitude, longitude)
+        el = sun_elevation(hUTC, dayofyear, year, latitude, longitude)
+        az = sun_azimuth(hUTC, dayofyear, year, latitude, longitude)
+        sunpos = pandas.DataFrame({'elevation' : el,
+                                  'zenith' : 90 - el,
+                                   'azimuth' : az},
+                                  index = times)
+    else:
+        raise ValueError(
+            'unknown method: ' + method + 'available methods are : pvlib, ephem and astk')
 
-
-
-
-
+    return sunpos.loc[sunpos['elevation'] > 0, :]
 
 # def sun_position(hUTC, dayofyear, year, longitude, latitude):
 #     """ compute sun position (sun elevation(degree) and sun azimuth( degree, Noth clockwise convention using ephem
