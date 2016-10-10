@@ -207,7 +207,7 @@ def daily_diffuse_fraction(ghi, times, latitude):
 
     return numpy.where(RsRso <= 0.07, 1,
                    numpy.where(RsRso <= 0.35, 1 - 2.3 * (RsRso - 0.07) ** 2,
-                               numpy.where(RsRso <= 0.75, 1.33 - 1.46 * RsRs0,
+                               numpy.where(RsRso <= 0.75, 1.33 - 1.46 * RsRso,
                                            0.23)))
 
 # def actual_sky_irradiances(weather, dates):

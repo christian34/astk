@@ -284,9 +284,9 @@ def sinel_integral(dayofyear, year, latitude):
     lat = numpy.radians(latitude)
     dec = declination(12, dayofyear, year)
     d = daylength(dayofyear, year, latitude)
-    return 3600 * [d * numpy.sin(lat) * numpy.sin(dec) + 24.
+    return 3600 * (d * numpy.sin(lat) * numpy.sin(dec) + 24. /
                    numpy.pi * numpy.cos(lat) * numpy.cos(dec) * numpy.sqrt(
-                       1 - numpy.tan(lat) ** 2 * numpy.tan(dec) ** 2)]
+                       1 - numpy.tan(lat) ** 2 * numpy.tan(dec) ** 2))
 
 
 def ephem_sun_position(hUTC, dayofyear, year, latitude, longitude):
