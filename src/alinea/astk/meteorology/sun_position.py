@@ -270,6 +270,25 @@ def eot(hUTC, dayofyear, year):
     return (L - ra) / 15.
 
 
+def daylength(dayofyear, year, latitude):
+    """ estimate of daylength"""
+
+    lat = numpy.radians(latitude)
+    dec = declination(12, dayofyear, year)
+    return 12 + 24 / numpy.pi * numpy.arcsin(numpy.tan(lat) - numpy.tan(dec))
+
+
+def sinel_integral(dayofyear, year, latitude):
+    """ estimate the daily integral of elevation sine"""
+
+    lat = numpy.radians(latitude)
+    dec = declination(12, dayofyear, year)
+    d = daylength(dayofyear, year, latitude)
+    return 3600 * [d * numpy.sin(lat) * numpy.sin(dec) + 24.
+                   numpy.pi * numpy.cos(lat) * numpy.cos(dec) * numpy.sqrt(
+                       1 - numpy.tan(lat) ** 2 * numpy.tan(dec) ** 2)]
+
+
 def ephem_sun_position(hUTC, dayofyear, year, latitude, longitude):
     import ephem
     observer = ephem.Observer()
@@ -346,18 +365,6 @@ def sun_position(dates=_dates, latitude=_latitude, longitude=_longitude,
 
     return sunpos
 
-# def sun_position(hUTC, dayofyear, year, longitude, latitude):
-#     """ compute sun position (sun elevation(degree) and sun azimuth( degree, Noth clockwise convention using ephem
-#     """
-#     try:
-#         import ephem
-#     except ImportError:
-#         return (sun_elevation(hUTC, dayofyear, longitude, latitude),
-#                 sun_azimuth(hUTC, dayofyear, longitude, latitude,
-#                             origin='North'))
-#     fun = numpy.frompyfunc(ephem_sun_position, 5, 2)
-#     alt, az = fun(hUTC, dayofyear, year, longitude, latitude)
-#     return alt.astype(float), az.astype(float)
 
 
 

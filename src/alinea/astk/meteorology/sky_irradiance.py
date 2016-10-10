@@ -21,7 +21,7 @@ irradiances packages, together with other model found in the litterature.
 """
 import numpy
 import pandas
-from alinea.astk.meteorology.sun_position import sun_position
+from alinea.astk.meteorology.sun_position import sun_position, sinel_integral
 pvlib_installed = True
 try:
     import pvlib
@@ -193,6 +193,22 @@ def diffuse_horizontal_irradiance(ghi, sun_elevation, times, pressure=101325, te
                                                                      1.47 - 1.66 * RsRso,
                                                                      R)))
         return ghi * RdRs
+
+
+
+def daily_diffuse_fraction(ghi, times, latitude):
+    """ estimate the diffuse fraction using daily averages of global horizontal irradiance"""
+
+    Io = sun_extraradiation(times)
+    dayofyear = times.tz_convert('UTC').dayofyear
+    year = times.tz_convert('UTC').year
+    So = Io * sinel_integral(dayofyear, year, latitude)
+    RsRso = ghi / So
+
+    return numpy.where(RsRso <= 0.07, 1,
+                   numpy.where(RsRso <= 0.35, 1 - 2.3 * (RsRso - 0.07) ** 2,
+                               numpy.where(RsRso <= 0.75, 1.33 - 1.46 * RsRs0,
+                                           0.23)))
 
 # def actual_sky_irradiances(weather, dates):
 #     """ derive a sky irradiance dataframe from actual weather data"""
