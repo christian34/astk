@@ -48,6 +48,7 @@ _longitude = 3.52
 _latitude = 43.36
 _altitude = 56
 
+
 def julian_date(hUTC, dayofyear, year):
     """ Julian calendar date
 
@@ -93,7 +94,6 @@ def ecliptic_longitude(hUTC, dayofyear, year):
 
     return L + 1.915 * numpy.sin(numpy.radians(g)) + 0.02 * numpy.sin(
         numpy.radians(2 * g))
-
 
 
 def declination(hUTC, dayofyear, year, method="default"):
@@ -245,7 +245,6 @@ def sun_azimuth(hUTC, dayofyear, year, latitude, longitude):
     return az
 
 
-
 def eot(hUTC, dayofyear, year):
     """equation of time, ie the discrepancy between true solar time and
     local solar time
@@ -284,7 +283,8 @@ def ephem_sun_position(hUTC, dayofyear, year, latitude, longitude):
 
 
 def sun_position(dates=_dates, latitude=_latitude, longitude=_longitude,
-                 altitude=_altitude, timezone=_timezone, method='pvlib'):
+                 altitude=_altitude, timezone=_timezone, method='pvlib',
+                 filter_night=True):
     """ Sun position
 
     Args:
@@ -294,10 +294,11 @@ def sun_position(dates=_dates, latitude=_latitude, longitude=_longitude,
         longitude: float
         altitude: (float) altitude in m
         timezone: a string identifying the timezone to be associated to dates if
-        dates is not already localised (default association  to UTC).
+        dates is not already localised.
         This args is not used if dates are already localised
-        method: (strin) the mmethod to use. default uses pvlib. other methods are
+        method: (string) the method to use. default uses pvlib. other methods are
         'ephem' (using ephem package) or 'astk' (using this module)
+        filter_night (bool) : Should positions of sun during night be filtered ?
 
     Returns:
         a pandas dataframe with sun position at requested dates indexed by
@@ -312,12 +313,10 @@ def sun_position(dates=_dates, latitude=_latitude, longitude=_longitude,
     sunpos = None
 
     if method == 'pvlib':
-        df = get_solarposition(times, latitude, longitude,
-                                                 altitude)
-        sunpos = pandas.DataFrame({'elevation' : df['apparent_elevation'],
-                                  'azimuth' : df['azimuth'],
-                                  'zenith' : df['apparent_zenith']},
-                                  index = df.index)
+        df = get_solarposition(times, latitude, longitude, altitude)
+        sunpos = pandas.DataFrame(
+            {'elevation': df['apparent_elevation'], 'azimuth': df['azimuth'],
+             'zenith': df['apparent_zenith']}, index=df.index)
     elif method == 'ephem':
         d = times.tz_convert('UTC')
         hUTC = d.hour + d.minute / 60.
@@ -325,9 +324,9 @@ def sun_position(dates=_dates, latitude=_latitude, longitude=_longitude,
         year = d.year
         fun = numpy.frompyfunc(ephem_sun_position, 5, 2)
         alt, az = fun(hUTC, dayofyear, year, latitude, longitude)
-        sunpos = pandas.DataFrame({'elevation' : alt.astype(float),
-                                  'azimuth' : az.astype(float)},
-                                  index = times)
+        sunpos = pandas.DataFrame(
+            {'elevation': alt.astype(float), 'azimuth': az.astype(float)},
+            index=times)
         sunpos['zenith'] = 90 - sunpos['elevation']
     elif method == 'astk':
         d = times.tz_convert('UTC')
@@ -336,15 +335,16 @@ def sun_position(dates=_dates, latitude=_latitude, longitude=_longitude,
         year = d.year
         el = sun_elevation(hUTC, dayofyear, year, latitude, longitude)
         az = sun_azimuth(hUTC, dayofyear, year, latitude, longitude)
-        sunpos = pandas.DataFrame({'elevation' : el,
-                                  'zenith' : 90 - el,
-                                   'azimuth' : az},
-                                  index = times)
+        sunpos = pandas.DataFrame(
+            {'elevation': el, 'zenith': 90 - el, 'azimuth': az}, index=times)
     else:
         raise ValueError(
             'unknown method: ' + method + 'available methods are : pvlib, ephem and astk')
 
-    return sunpos.loc[sunpos['elevation'] > 0, :]
+    if filter_night and sunpos is not None:
+        sunpos = sunpos.loc[sunpos['elevation'] > 0, :]
+
+    return sunpos
 
 # def sun_position(hUTC, dayofyear, year, longitude, latitude):
 #     """ compute sun position (sun elevation(degree) and sun azimuth( degree, Noth clockwise convention using ephem
