@@ -216,5 +216,8 @@ def aw_relative_luminance(theta, phi, sun_zenith, sun_azimuth, clearness, bright
     element = (numpy.cos(phi), numpy.sin(phi), numpy.cos(theta))
     gamma = map(lambda x: abs(angle(element, x)), sun)
 
-    return (1 + a * numpy.exp(b / numpy.cos(theta))) * (
-        1 + c * numpy.exp(d * gamma) + e * numpy.cos(gamma) ** 2)
+    def _lum(t, g):
+        return (1 + a * numpy.exp(b / numpy.cos(t))) * (
+            1 + c * numpy.exp(d * g) + e * numpy.cos(g) ** 2)
+
+    return _lum(theta, gamma) / _lum(0, abs(z))
