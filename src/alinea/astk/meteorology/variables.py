@@ -17,6 +17,7 @@
 
 import numpy
 
+
 # converters
 
 # PAR / global
@@ -34,7 +35,7 @@ def PPFD_to_global(PPFD):
 
 def diffuse_PAR_to_diffuse(PAR, diffuse_PAR):
     beam_fraction = 1 - diffuse_PAR / PAR
-    return diffuse_PAR / (0.48 - 0.48 * beam_fraction**4)
+    return diffuse_PAR / (0.48 - 0.48 * beam_fraction ** 4)
 
 
 def global_to_PAR(global_radiation):
@@ -55,7 +56,7 @@ def PAR_to_PPFD(PAR):
 
 def diffuse_to_diffuse_PAR(global_radiation, diffuse_radiation):
     beam_fraction = 1 - diffuse_radiation / global_radiation
-    return diffuse_radiation * (0.48 - 0.48 * beam_fraction**4)
+    return diffuse_radiation * (0.48 - 0.48 * beam_fraction ** 4)
 
 
 def Psat(T):
@@ -80,47 +81,46 @@ def humidity_to_Tdew(humidity, Tair):
 variables = {
     # temperature
     'air_temperature': {'unit': 'degree Celcius',
-                         'desc': 'Air temperature at screen height',
-                         'synonym': ['Tair']},
+                        'desc': 'Air temperature at screen height',
+                        'synonym': ['Tair']},
     # radiation
     'global_radiation': {'unit': 'W.m-2',
-        'desc': 'hemispherical irradiance on horizontal surface',
-        'synonym': ['global_horizontal_irradiance', 'GHI'],
-        'convert': {'PAR': PAR_to_global,
-                    'PPFD': PPFD_to_global}},
+                         'desc': 'hemispherical irradiance on horizontal surface',
+                         'synonym': ['global_horizontal_irradiance', 'GHI'],
+                         'convert': {'PAR': PAR_to_global,
+                                     'PPFD': PPFD_to_global}},
     'diffuse_radiation': {'unit': 'W.m-2',
-        'desc': 'diffuse horizontal irradiance from the sky',
-        'synonym': ['diffuse_horizontal_irradiance', 'DHI'],
-        'convert': {('PAR','diffuse_PAR'): diffuse_PAR_to_diffuse},
-    'PAR': {'unit':'W.m-2',
-        'desc': 'Photosynthetically active radiation (direct and diffuse'},
-        'convert': {'global_radiation': global_to_PAR,
-                    'PPFD': PPFD_to_PAR}},
+                          'desc': 'diffuse horizontal irradiance from the sky',
+                          'synonym': ['diffuse_horizontal_irradiance', 'DHI'],
+                          'convert': {
+                              ('PAR', 'diffuse_PAR'): diffuse_PAR_to_diffuse},
+                          'PAR': {'unit': 'W.m-2',
+                                  'desc': 'Photosynthetically active radiation (direct and diffuse'},
+                          'convert': {'global_radiation': global_to_PAR,
+                                      'PPFD': PPFD_to_PAR}},
     'PPFD': {'unit': 'micromol.m-2.s-1',
              'desc': 'Photosynthetic Photon Flux Density (direct and diffuse)',
-                'convert': {'global_radiation': global_to_PPFD,
-                            'PAR': PAR_to_PPFD}},
-    'diffuse_PAR': {'unit':'W.m-2',
-        'desc': 'Photosynthetically active radiation of the sky',
-        'convert':{('global_radiation', 'diffuse_radiation'): diffuse_to_diffuse_PAR}},
+             'convert': {'global_radiation': global_to_PPFD,
+                         'PAR': PAR_to_PPFD}},
+    'diffuse_PAR': {'unit': 'W.m-2',
+                    'desc': 'Photosynthetically active radiation of the sky',
+                    'convert': {('global_radiation', 'diffuse_radiation'): diffuse_to_diffuse_PAR}},
     # humidity
     'relative_humidity': {'unit': 'percent',
-                        'desc': 'relative humidity of the air at screen height',
-                        'synonym': ['HR']},
-    'vapor_pressure': {'unit': 'kPa',
-                        'desc': 'vapor pressure of the air',
-                        'synonym': [],
+                          'desc': 'relative humidity of the air at screen height',
+                          'synonym': ['HR']},
+    'vapor_pressure': {'unit': 'kPa', 'desc': 'vapor pressure of the air',
+                       'synonym': [],
                        'convert': {('HR', 'Tair'): humidity_to_vapor_pressure}},
     'dew_point_temperature': {'unit': 'degrees Celcius',
                               'desc': 'dew point temperature of the air',
-                       'synonym': ['Tdew'],
-                       'convert': {('HR', 'Tair'): humidity_to_Tdew}},
+                              'synonym': ['Tdew'],
+                              'convert': {('HR', 'Tair'): humidity_to_Tdew}},
     # wind
-    'wind_speed': {'unit': 'm.s-1',
-                          'desc': 'velocity of wind'},
+    'wind_speed': {'unit': 'm.s-1', 'desc': 'velocity of wind'},
     # rain
-    'rain': {'unit': 'mm', 'desc': 'precipitations'},
-}
+    'rain': {'unit': 'mm', 'desc': 'precipitations'}, }
+
 
 def meteorological_variables():
     """ return an expanded (one entry for all synonims) dict of variables"""
@@ -129,8 +129,9 @@ def meteorological_variables():
     for k in variables:
         if 'synonym' in variables[k]:
             for s in variables[k]['synonym']:
-                d = {kk:vv for kk,vv in variables[k].iteritems()}
-                d['synonym'] = [k] + [ss for ss in variables[k]['synonym'] if ss != s]
+                d = {kk: vv for kk, vv in variables[k].iteritems()}
+                d['synonym'] = [k] + [ss for ss in variables[k]['synonym'] if
+                                      ss != s]
                 expanded[s] = d
 
     return expanded
