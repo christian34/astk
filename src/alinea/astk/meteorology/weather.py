@@ -11,6 +11,7 @@ import pytz
 from datetime import datetime, timedelta
 from math import exp
 
+from alinea.astk.meteorology.variables import meteorological_variables
 from alinea.astk.TimeControl import *
 import alinea.astk.sun_and_sky as sunsky
 
@@ -30,7 +31,9 @@ def septo3d_reader(data_file):
     # 24h -> 0h
     last_day = max(dayofyear)
     dayofyear = dayofyear + numpy.where(hour == 24, 1, 0)
-    dayofyear = numpy.where(dayofyear > last_day, last_day, dayofyear)
+    year = year + numpy.where(dayofyear > last_day, 1, 0)
+    dayofyear = numpy.where(dayofyear > last_day, 1, dayofyear)
+
     hour = hour - numpy.where(hour == 24, 24, 0)
 
     def _date(y, d, h):
@@ -91,6 +94,8 @@ class Weather(object):
         - timezone indicates the standard timezone name (see pytz infos) to be used for interpreting the date (default 'UTC')
     """
 
+    vars = meteorological_variables()
+
     def __init__(self, data_file=sample_meteo, reader=septo3d_reader, wind_screen=2,
                  temperature_screen=2,
                  localisation=sample_location):
@@ -100,78 +105,76 @@ class Weather(object):
         self.longitude = localisation['longitude']
         self.timezone = localisation['timezone']
 
-        if data_file is '':
-            self.data = None
-        else:
-            self.data = reader(data_file)
-            self.data.index = self.data.index.tz_convert(self.timezone)
+
+        self.data = reader(data_file)
+        self.data.index = self.data.index.tz_convert(self.timezone)
+        self.freq = str((self.data.index[1] - self.data.index[0]).seconds / 3600) + 'H'
         self.wind_screen = wind_screen
         self.temperature_screen = temperature_screen
 
 
-    def date_range_index(self, start, end=None, by=24):
-        """ return a (list of) time sequence that allow indexing one or several time intervals between start and end every 'by' hours
-        if end is None, only one time interval of 'by' hours is returned
-        
-        start and end are expected in local time
+    def date_range(self, start=None, end=None, step=24):
+        """ A wrapper to pandas date_range adapted to weather data
         """
-        if end is None:
-            seq = pandas.date_range(start=start, periods=by, freq='H',
-                                    tz=self.timezone.zone)
-            return seq.tz_convert('UTC')
-        else:
-            seq = pandas.date_range(start=start, end=end, freq='H',
-                                    tz=self.timezone.zone)
-            seq = seq.tz_convert('UTC')
-            bins = pandas.date_range(start=start, end=end, freq=str(by) + 'H',
-                                     tz=self.timezone.zone)
-            bins = bins.tz_convert('UTC')
-            return [seq[(seq >= bins[i]) & (seq < bins[i + 1])] for i in
-                    range(len(bins) - 1)]
+        if end is not None:
+            step = None
+        return pandas.date_range(start, end, periods=step, freq=self.freq, tz=self.timezone, closed='left')
 
-    def get_weather(self, time_sequence):
+    def get(self, start, end=None, step=24, what=None):
         """ Return weather data for a given time sequence
         """
-        return self.data.truncate(before=time_sequence[0],
-                                  after=time_sequence[-1])
-
-    def get_weather_start(self, time_sequence):
-        """ Return weather data at start of timesequence
-        """
-        return self.data.truncate(before=time_sequence[0],
-                                  after=time_sequence[0])
-
-    def get_variable(self, what, time_sequence):
-        """
-        return values of what at date specified in time sequence
-        """
-        return self.data[what][time_sequence]
-
-    def check(self, varnames=[], models={}, args={}):
-        """ Check if varnames are in data and try to create them if absent using defaults models or models provided in arg.
-        Return a bool list with True if the variable is present or has been succesfully created, False otherwise.
-        
-        Parameters: 
-        
-        - varnames : a list of name of variable to check
-        - models a dict (name: model) of models to use to generate the data. models receive data as argument
-        """
-
-        models.update(self.models)
-
-        check = []
-
-        for v in varnames:
-            if v in self.data.columns:
-                check.append(True)
-            else:
-                if v in models.keys():
-                    values = models[v](self.data, **args.get(v, {}))
-                    self.data[v] = values
-                    check.append(True)
+        seq = self.date_range(start, end, step)
+        data = self.data.loc[seq, :]
+        if what is None:
+            selection = data.columns
+        else:
+            selection = []
+            for w in what:
+                if w in data.columns:
+                    selection.append(w)
+                elif w in self.vars:
+                    if any(data.columns.isin(self.vars[w]['synonym'])):
+                        syn = data.columns[data.columns.isin(self.vars[w]['synonym'])]
+                        data[w] = data[syn[0]]
+                        selection.append(w)
+                    elif 'convert' in self.vars[w]:
+                        for prior in self.vars[w]['convert']:
+                            if not isinstance(prior, tuple):
+                                if prior in data.columns:
+                                    data[w] = self.vars[w]['convert'][prior](data[prior])
+                                    selection.append(w)
+                                    break
+                                elif any(data.columns.isin(self.vars[prior]['synonym'])):
+                                    syn = data.columns[data.columns.isin(self.vars[prior]['synonym'])]
+                                    data[w] = self.vars[w]['convert'][prior](
+                                        data[syn[0]])
+                                    selection.append(w)
+                                    break
+                                else:
+                                    pass
+                            else:
+                                all_found=True
+                                for p in prior:
+                                    if p in data.columns:
+                                        pass
+                                    elif any(data.columns.isin(self.vars[p]['synonym'])):
+                                        syn = data.columns[data.columns.isin(
+                                            self.vars[p]['synonym'])]
+                                        data[p] = data[syn[0]]
+                                    else:
+                                        all_found=False
+                                if all_found:
+                                    args = [data[p] for p in prior]
+                                    data[w] = self.vars[w]['convert'][prior](*args)
+                                    selection.append(w)
+                                    break
+                    if w not in selection:
+                        raise ValueError('Cannot find nor estimate variable: ' + w)
                 else:
-                    check.append(False)
-        return check
+                    raise ValueError('unknown variable: ' + w)
+
+        return data.loc[:, selection]
+
 
     def split_weather(self, time_step, t_deb, n_steps):
 

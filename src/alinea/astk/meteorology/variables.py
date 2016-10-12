@@ -93,9 +93,9 @@ variables = {
                           'desc': 'diffuse horizontal irradiance from the sky',
                           'synonym': ['diffuse_horizontal_irradiance', 'DHI'],
                           'convert': {
-                              ('PAR', 'diffuse_PAR'): diffuse_PAR_to_diffuse},
-                          'PAR': {'unit': 'W.m-2',
-                                  'desc': 'Photosynthetically active radiation (direct and diffuse'},
+                              ('PAR', 'diffuse_PAR'): diffuse_PAR_to_diffuse}},
+    'PAR': {'unit': 'W.m-2',
+            'desc': 'Photosynthetically active radiation (direct and diffuse',
                           'convert': {'global_radiation': global_to_PAR,
                                       'PPFD': PPFD_to_PAR}},
     'PPFD': {'unit': 'micromol.m-2.s-1',
@@ -133,5 +133,7 @@ def meteorological_variables():
                 d['synonym'] = [k] + [ss for ss in variables[k]['synonym'] if
                                       ss != s]
                 expanded[s] = d
+        else:
+            expanded[k]['synonym'] = []
 
     return expanded
