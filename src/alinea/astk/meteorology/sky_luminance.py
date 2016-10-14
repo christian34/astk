@@ -53,9 +53,9 @@ def cie_scattering_indicatrix(theta, phi, sun_zenith, sun_azimuth,
     d, e : coefficient for the type of sky
     """
     z = numpy.array(theta)
-    zs = numpy.array(sun_zenith)
+    zs = numpy.radians(numpy.array(sun_zenith))
     alpha = numpy.array(phi)
-    alpha_s = numpy.array(sun_azimuth)
+    alpha_s = numpy.radians(numpy.array(sun_azimuth))
     ksi = numpy.arccos(
         numpy.cos(zs) * numpy.cos(z) + numpy.sin(zs) * numpy.sin(z) * numpy.cos(
             numpy.abs(alpha - alpha_s)))
@@ -77,7 +77,8 @@ def cie_relative_luminance(theta, phi=None, sun_zenith=None,
 
     angle in radians
     type is one of 'soc' (standard overcast sky), 'uoc' (uniform luminance)
-    or 'clear_sky' (standard clear sky low turbidity)
+    , 'clear_sky' (standard clear sky low turbidity) or 'blended' (mixture of overcast and clearsky)
+    for blended CIE skies, mixing function is after Mardaljevic
     """
 
     if type == 'clear_sky' and (
@@ -93,40 +94,14 @@ def cie_relative_luminance(theta, phi=None, sun_zenith=None,
                                        -0.32) * cie_scattering_indicatrix(
             theta, phi, sun_zenith, sun_azimuth, 10, -3,
             0.45)
+    elif type == 'blended':
+        # f_clear = min(1, (clearness - 1) / (1.41 - 1))
+        raise ValueError('not yet implemented')
     else:
         raise ValueError, 'Unknown sky type'
 
 
 # all weather sky model
-
-def aw_clearness(dni, dhi, sun_zenith):
-    """
-
-    Args:
-        ghi:
-        dni:
-        dhi:
-        sun_zenith:
-
-    Returns:
-
-    """
-    z = sun_zenith
-    return ((dhi + dni) / dhi + 1.041 * z**3) / (1 + 1.041 * z**3)
-
-
-def aw_brightness(air_mass, dhi, dni_extra):
-    """
-
-    Args:
-        air_mass:
-        dhi:
-        dni_extra:
-
-    Returns:
-
-    """
-    return air_mass * dhi / dni_extra
 
 
 def aw_parameters(z, clearness, brightness):
@@ -191,16 +166,51 @@ def aw_parameters(z, clearness, brightness):
 
 def angle(a, b):
     """ angle (rad) between vector a and b"""
-    return numpy.arctan2(numpy.linalg.norm(numpy.cross(a, b)), numpy.dot(a, b))
+    return numpy.arctan2(numpy.linalg.norm(numpy.cross(a, b)), numpy.linalg.norm(numpy.dot(a, b)))
 
+
+def cartesian(theta, phi):
+    return numpy.sin(theta) * numpy.cos(phi), numpy.sin(theta) * numpy.sin(phi), numpy.cos(theta)
 
 def aw_relative_luminance(theta, phi, sun_zenith, sun_azimuth, clearness, brightness):
     """
 
     Args:
-        theta:
-        phi:
-        sun_elevation:
+        theta: (float)
+        phi: (float)
+        sun_elevation: (array)
+        sun_azimuth: (array)
+        clearness: (array)
+        brightness: (array)
+
+    Returns:
+
+    """
+    # to do normalise by zenith for consistency with cie
+    z = numpy.radians(sun_zenith)
+    az = numpy.radians(sun_azimuth)
+    pars = numpy.frompyfunc(aw_parameters, 3, 5)
+    a, b, c, d, e = map(lambda x: numpy.array(map(float, x)), pars(z, clearness, brightness))
+    sun = zip(*cartesian(z, az))
+    element = cartesian(theta,phi)
+    gamma = map(lambda x: abs(angle(element, x)), sun)
+
+    def _lum(t, g):
+        return (1 + a * numpy.exp(b / numpy.cos(t))) * (
+            1 + c * numpy.exp(d * g) + e * numpy.cos(g) ** 2)
+
+    return _lum(theta, gamma) / _lum(0, numpy.abs(z))
+
+
+def directional_irradiances(theta, phi, ghi=1, model='cie_soc', sun_zenith=None, sun_azimuth=None, clearness=None, brightness=None):
+    """
+
+    Args:
+        theta: (array)
+        phi: (array)
+        ghi:
+        model:
+        sun_zenith:
         sun_azimuth:
         clearness:
         brightness:
@@ -208,16 +218,22 @@ def aw_relative_luminance(theta, phi, sun_zenith, sun_azimuth, clearness, bright
     Returns:
 
     """
-    # to do normalise by zenith for consistency with cie
-    z = sun_zenith
-    az = sun_azimuth
-    a, b, c, d, e = aw_parameters(z, clearness, brightness)
-    sun = zip(numpy.cos(az), numpy.sin(az), numpy.cos(z))
-    element = (numpy.cos(phi), numpy.sin(phi), numpy.cos(theta))
-    gamma = map(lambda x: abs(angle(element, x)), sun)
+    theta = numpy.array(theta)
+    phi = numpy.array(phi)
 
-    def _lum(t, g):
-        return (1 + a * numpy.exp(b / numpy.cos(t))) * (
-            1 + c * numpy.exp(d * g) + e * numpy.cos(g) ** 2)
+    if model == 'all_weather':
+        if any(map(lambda x: x is None, [ghi, sun_zenith, sun_azimuth, clearness, brightness])):
+            raise ValueError('All weather model needs all inputs to be set')
+        # relatives_irradiances(t) for all directions
+        r_irrt = [aw_relative_luminance(t,p,sun_zenith, sun_azimuth,clearness,brightness) * numpy.cos(t) for t, p in zip(theta,phi)]
+    elif model == 'cie_soc':
+        r_irrt = [[cie_relative_luminance(t) * numpy.cos(t)] * len(ghi) for t in theta]
+    else:
+        raise ValueError('unknown model')
+    # sky integrals_of relative_irradiances(t)
+    sky_irrt = map(sum, zip(*r_irrt))
+    # irradiances
+    irradiances = [sum(r / sky_irrt * ghi) for r in r_irrt]
+    return irradiances
 
-    return _lum(theta, gamma) / _lum(0, abs(z))
+

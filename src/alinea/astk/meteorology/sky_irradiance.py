@@ -105,6 +105,35 @@ def air_mass(zenith, altitude=0):
     return am
 
 
+def aw_clearness(dni, dhi, sun_zenith):
+    """
+
+    Args:
+        ghi:
+        dni:
+        dhi:
+        sun_zenith:
+
+    Returns:
+
+    """
+    z = numpy.radians(sun_zenith)
+    return ((dhi + dni) / dhi + 1.041 * z**3) / (1 + 1.041 * z**3)
+
+
+def aw_brightness(air_mass, dhi, dni_extra):
+    """
+
+    Args:
+        air_mass:
+        dhi:
+        dni_extra:
+
+    Returns:
+
+    """
+    return air_mass * dhi / dni_extra
+
 def clear_sky_irradiances(dates=_dates, longitude=_longitude, latitude=_latitude, altitude=_altitude, timezone=_timezone, method = 'ineichen'):
     """ Estimate components of  sky irradiance for clear sy conditions at a given location
 
@@ -142,7 +171,10 @@ def clear_sky_irradiances(dates=_dates, longitude=_longitude, latitude=_latitude
         clearsky['dni'] = df['dni_extra'] * numpy.power(0.7, numpy.power(df['am'], 0.678))
         clearsky['dhi'] = clearsky['ghi'] - horizontal_irradiance(clearsky['dni'], df['elevation'])
 
-    return clearsky.loc[:,['azimuth', 'zenith', 'elevation', 'am', 'dni_extra', 'ghi', 'dni', 'dhi' ]]
+    clearsky['brightness'] = aw_brightness(clearsky['am'], clearsky['dhi'], clearsky['dni_extra'])
+    clearsky['clearness'] = aw_clearness(clearsky['dni'], clearsky['dhi'], clearsky['zenith'])
+
+    return clearsky.loc[:,['azimuth', 'zenith', 'elevation', 'am', 'dni_extra', 'clearness', 'brightness', 'ghi', 'dni', 'dhi' ]]
 
 
 def diffuse_horizontal_irradiance(ghi, sun_elevation, times, pressure=101325, temp_dew=None, method='dirint'):
@@ -225,7 +257,10 @@ def actual_sky_irradiances(dates, ghi, dhi=None, Tdew=None, longitude=_longitude
     el = numpy.radians(df['elevation'])
     df['dni'] = (df['ghi'] - df['dhi']) / numpy.sin(el)
 
-    return df.loc[df['elevation'] > 0, ['azimuth', 'zenith', 'elevation', 'am', 'dni_extra', 'ghi', 'dni', 'dhi' ]]
+    df['brightness'] = aw_brightness(df['am'], df['dhi'], df['dni_extra'])
+    df['clearness'] = aw_clearness(df['dni'], df['dhi'], df['zenith'])
+
+    return df.loc[(df['elevation'] > 0) & (df['ghi'] > 0) , ['azimuth', 'zenith', 'elevation', 'am', 'dni_extra', 'clearness', 'brightness', 'ghi', 'dni', 'dhi' ]]
 
 
 
