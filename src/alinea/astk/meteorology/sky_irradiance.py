@@ -210,22 +210,22 @@ def daily_diffuse_fraction(ghi, times, latitude):
                                numpy.where(RsRso <= 0.75, 1.33 - 1.46 * RsRso,
                                            0.23)))
 
-# def actual_sky_irradiances(weather, dates):
-#     """ derive a sky irradiance dataframe from actual weather data"""
-#     loc = weather.localisation
-#     data = weather.data.loc[dates,:]
-#     df = sun_position(dates, loc['latitude'], loc['longitude'], loc['altitude'], loc['timezone'])
-#     df['am'] = air_mass(df, loc['altitude'])
-#     df['dni_extra'] = pvlib.irradiance.extraradiation(df.index)
-#     df['ghi'] = data['global']
-#     if 'dhi' not in data.columns:
-#         pressure = pvlib.atmosphere.alt2pres(loc['altitude'])
-#         df['dni'] = pvlib.irradiance.dirint(df['ghi'], df['apparent_zenith'], df.index, pressure=pressure, temp_dew=None)
-#         df['dhi'] = df['ghi'] - (df['dni'] * numpy.sin(df['apparent_elevation']))
-#     else:
-#         df['dhi'] = data['dhi']
-#         df['dni'] = (df['ghi'] - df['dhi']) / numpy.sin(df['apparent_elevation'])
-#     return df.loc[:,['UTC', 'azimuth', 'apparent_zenith', 'apparent_elevation', 'am', 'dni_extra', 'ghi', 'dni', 'dhi' ]]
+
+def actual_sky_irradiances(dates, ghi, dhi=None, Tdew=None, longitude=_longitude, latitude=_latitude, altitude=_altitude, method='dirint'):
+    """ derive a sky irradiance dataframe from actual weather data"""
+
+    df = sun_position(dates, latitude, longitude, altitude, filter_night=False)
+    df['am'] = air_mass(df['zenith'], altitude)
+    df['dni_extra'] = sun_extraradiation(df.index)
+    if dhi is None:
+        pressure = pvlib.atmosphere.alt2pres(altitude)
+        dhi = diffuse_horizontal_irradiance(ghi, df['elevation'], dates, pressure=pressure, temp_dew=Tdew, method=method)
+    df['ghi'] = ghi
+    df['dhi'] = dhi
+    el = numpy.radians(df['elevation'])
+    df['dni'] = (df['ghi'] - df['dhi']) / numpy.sin(el)
+
+    return df.loc[df['elevation'] > 0, ['azimuth', 'zenith', 'elevation', 'am', 'dni_extra', 'ghi', 'dni', 'dhi' ]]
 
 
 

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from math import exp
 
 from alinea.astk.meteorology.variables import meteorological_variables
+from alinea.astk.meteorology.sky_irradiance import actual_sky_irradiances
 from alinea.astk.TimeControl import *
 import alinea.astk.sun_and_sky as sunsky
 
@@ -67,16 +68,6 @@ def linear_degree_days(data, start_date=None, base_temp=0., max_temp=35.):
     return dd
 
 
-def diffuse_fraction(data, localisation):
-    """ Estimate the diffuse to global fraction 
-    """
-    heureTU = data.index.hour + data.index.minute / 60.
-    DOY = data.index.dayofyear
-    Rg = data['global_radiation']
-    rdrs = sunsky.diffuse_fraction(Rg, heureTU, DOY,
-                                   longitude=localisation['longitude'],
-                                   latitude=localisation['latitude'])
-    return rdrs
 
 
 class Weather(object):
@@ -104,6 +95,7 @@ class Weather(object):
         self.latitude = localisation['latitude']
         self.longitude = localisation['longitude']
         self.timezone = localisation['timezone']
+        self.altitude = localisation['altitude']
 
 
         self.data = reader(data_file)
@@ -149,6 +141,7 @@ class Weather(object):
                                     data[w] = self.vars[w]['convert'][prior](
                                         data[syn[0]])
                                     selection.append(w)
+
                                     break
                                 else:
                                     pass
@@ -175,6 +168,11 @@ class Weather(object):
 
         return data.loc[:, selection]
 
+
+    def sky_irradiances(self, start, end=None, step=24):
+        # hack : find a way to test if a variable is there or not
+        data = self.get(start, end, step,['GHI', 'Tdew'])
+        return actual_sky_irradiances(data.index, data['GHI'], Tdew=data['Tdew'], longitude=self.longitude, latitude=self.latitude, altitude=self.altitude)
 
     def split_weather(self, time_step, t_deb, n_steps):
 
