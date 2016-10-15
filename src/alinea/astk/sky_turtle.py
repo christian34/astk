@@ -15,9 +15,12 @@
 """
 
 from alinea.astk.icosphere import turtle_dome, sample_faces, display
-from alinea.astk.all_weather_sky import clear_sky_irradiances, all_weather_sky, relative_irradiance
+from alinea.astk.meteorology.sky_irradiance import clear_sky_irradiances
+from alinea.astk.meteorology.sky_luminance import directional_irradiances
 from alinea.astk.colormap import jet_colors
+import pandas
 import numpy
+
 
 class SkyTurtle(object):
     """ A class interface to 'turtle' sky representation
@@ -28,25 +31,45 @@ class SkyTurtle(object):
         self.vertices, self.faces = turtle_dome(discretisation_level)
 
     def face_samples(self, iter=None):
-        """ return a list of theta, phi direction tuples sampling the turtle  faces"""
+        """ return a list of theta, phi direction tuples sampling the turtle faces"""
         return sample_faces(self.vertices, self.faces, iter=iter, spheric=True)
 
-    def sample_irradiances(self, iter=None, sky_irradiances=None):
+    def directional_irradiances(self, model='all_weather', iter=None, add_sun=False,
+                                sky_irradiances=None, ghi=(1,), zenith=(0,),
+                                azimuth=(0,), clearness=(1,), brightness=(0.2,)):
+        """
+
+        Args:
+            iter: number of face spliting iteration to perform to subsample faces
+            add_sun : shoul sun directions (zenith/azimuth) be added to the turtle face sampling set ?
+            sky_irradiances: a pandas dataframe with columns or a dict of list
+            model:
+
+        Returns:
+
+        """
         if sky_irradiances is None:
-            sky_irradiances = clear_sky_irradiances().iloc[[7],:]
-        sky = all_weather_sky(sky_irradiances)
+            sky = {'ghi':ghi, 'azimuth': azimuth, 'zenith':zenith, 'clearness':clearness, 'brightness':brightness}
+        else:
+            sky = sky_irradiances
         directions, tags = self.face_samples(iter)
-        irr_t = [relative_irradiance(t, p, sky) for t, p in directions]
-        total_irr_t = map(sum, zip(*irr_t))
-        irradiances = [sum(it / total_irr_t * sky['ghi']) for it in irr_t]
+        irradiances = directional_irradiances(sky['ghi'], directions,
+                                              model=model,
+                                              sun_zenith=sky['zenith'],
+                                              sun_azimuth=sky['azimuth'],
+                                              clearness=sky['clearness'],
+                                              brightness=sky['brightness'])
+        df = pandas.DataFrame({'tag':tags, 'irradiance':irradiances})
+        irr_faces = df.groupby('tag').agg(numpy.sum)
+        # to do : choose argmax dir
         order = numpy.argsort(tags)
-        return directions, irradiances, tags, order
+        return directions, irradiances,irr_faces, tags, order
 
     def sample_luminances(self, iter=None, sky_irradiances=None):
         directions, irradiances, tags, order = self.sample_irradiances(iter, sky_irradiances)
         theta, phi = zip(*directions)
-        sint = numpy.where(numpy.sin(theta) == 0, 1, numpy.sin(theta))
-        return directions, irradiances / sint, tags, order
+        cost = numpy.where(numpy.cos(theta) <= 0, 0, numpy.cos(theta))
+        return directions, irradiances * cost, tags, order
 
 
     def display(self, property=None):

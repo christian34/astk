@@ -49,7 +49,7 @@ def cie_scattering_indicatrix(theta, phi, sun_zenith, sun_azimuth,
     CIE, 2002, Spatial distribution of daylight CIE standard general sky,
     CIE standard, CIE Central Bureau, Vienna
 
-    elevation : elevation angle of the sky element (rad)
+    elevation : elevation angle of the sky element
     d, e : coefficient for the type of sky
     """
     z = numpy.array(theta)
@@ -97,6 +97,11 @@ def cie_relative_luminance(theta, phi=None, sun_zenith=None,
     elif type == 'blended':
         # f_clear = min(1, (clearness - 1) / (1.41 - 1))
         raise ValueError('not yet implemented')
+    elif type == 'dirac':
+        #hack: azimuth may differ from phi, bette comparre cartesian
+        # if numpy.isclose(theta, numpy.radians(sun_zenith)) and numpy.isclose(phi, numpy.radians(sun_azimuth)):
+        raise ValueError('not yet implemented')
+        # soc * ghi * (1-beam_fraction) except toward sun direction (approx +- 1degree ?)
     else:
         raise ValueError, 'Unknown sky type'
 
@@ -173,20 +178,21 @@ def cartesian(theta, phi):
     return numpy.sin(theta) * numpy.cos(phi), numpy.sin(theta) * numpy.sin(phi), numpy.cos(theta)
 
 def aw_relative_luminance(theta, phi, sun_zenith, sun_azimuth, clearness, brightness):
-    """
+    """ Relative luminance of sky in a given direction according to all_weather sky model
+        luminance are relative to zenital luminance
 
     Args:
-        theta: (float)
+        theta: (float) zenital coordinate(radians)
         phi: (float)
-        sun_elevation: (array)
+        sun_elevation: (array) an array-like list of sun elevation (degrees)
         sun_azimuth: (array)
-        clearness: (array)
+        clearness: (array) perez sky clearness index
         brightness: (array)
 
     Returns:
 
     """
-    # to do normalise by zenith for consistency with cie
+
     z = numpy.radians(sun_zenith)
     az = numpy.radians(sun_azimuth)
     pars = numpy.frompyfunc(aw_parameters, 3, 5)
@@ -202,13 +208,16 @@ def aw_relative_luminance(theta, phi, sun_zenith, sun_azimuth, clearness, bright
     return _lum(theta, gamma) / _lum(0, numpy.abs(z))
 
 
-def directional_irradiances(theta, phi, ghi=1, model='cie_soc', sun_zenith=None, sun_azimuth=None, clearness=None, brightness=None):
-    """
+def directional_irradiances(ghi, directions, model='cie_soc',  sun_zenith=None, sun_azimuth=None, clearness=None, brightness=None, beam_fraction=None):
+    """ Compute the directional partitioning of a time series of global horizontal irradiance among a finite set of directions.
+        If time series has more than one value, directional irradiances partition the mean irradiance, using the wighted mean of the temp
+        oral contribution of each direction
 
     Args:
         theta: (array)
         phi: (array)
-        ghi:
+        ghi: global horizontal irradiance, either instantaneous or at several time points. in the later case
+
         model:
         sun_zenith:
         sun_azimuth:
@@ -218,8 +227,10 @@ def directional_irradiances(theta, phi, ghi=1, model='cie_soc', sun_zenith=None,
     Returns:
 
     """
+    theta, phi = zip(*directions)
     theta = numpy.array(theta)
     phi = numpy.array(phi)
+    ghi = numpy.array(ghi)
 
     if model == 'all_weather':
         if any(map(lambda x: x is None, [ghi, sun_zenith, sun_azimuth, clearness, brightness])):
@@ -227,13 +238,13 @@ def directional_irradiances(theta, phi, ghi=1, model='cie_soc', sun_zenith=None,
         # relatives_irradiances(t) for all directions
         r_irrt = [aw_relative_luminance(t,p,sun_zenith, sun_azimuth,clearness,brightness) * numpy.cos(t) for t, p in zip(theta,phi)]
     elif model == 'cie_soc':
-        r_irrt = [[cie_relative_luminance(t) * numpy.cos(t)] * len(ghi) for t in theta]
+        r_irrt = [numpy.array([cie_relative_luminance(t) * numpy.cos(t)] * len(ghi)) for t in theta]
     else:
         raise ValueError('unknown model')
     # sky integrals_of relative_irradiances(t)
-    sky_irrt = map(sum, zip(*r_irrt))
+    sky_irrt = map(numpy.sum, zip(*r_irrt))
     # irradiances
     irradiances = [sum(r / sky_irrt * ghi) for r in r_irrt]
-    return irradiances
+    return numpy.array(irradiances) / len(ghi)
 
 
