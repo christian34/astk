@@ -22,12 +22,13 @@ import pandas
 import pvlib
 
 # some defaults
-_day = '2000-06-21'
+_day = '2000-10-21'
 _dates = pandas.date_range(_day, periods=24, freq='H')
 _timezone = 'Europe/Paris'
-_longitude = 3.87
-_latitude = 43.61
-_altitude = 45
+_timezone = 'UTC'
+_longitude = 9.37
+_latitude = 52.23
+_altitude = 52
 
 
 def sun_position(dates=_dates, latitude=_latitude, longitude=_longitude, altitude=_altitude, timezone=_timezone):
@@ -69,7 +70,7 @@ def air_mass(sunpos, altitude=_altitude):
 
 
 def clear_sky_irradiances(dates=_dates, longitude=_longitude, latitude=_latitude, altitude=_altitude, timezone=_timezone):
-    df = sun_position(dates, longitude, latitude, altitude, timezone)
+    df = sun_position(dates, latitude, longitude, altitude, timezone)
     df['am'] = air_mass(df, altitude)
     tl = pvlib.clearsky.lookup_linke_turbidity(df.index, latitude, longitude)
     df['dni_extra'] = pvlib.irradiance.extraradiation(df.index)
@@ -81,13 +82,14 @@ def actual_sky_irradiances(weather, dates):
     """ derive a sky irradiance dataframe from actual weather data"""
     loc = weather.localisation
     data = weather.data.loc[dates,:]
-    df = sun_position(dates, loc['longitude'], loc['latitude'], loc['altitude'], loc['timezone'])
+    df = sun_position(dates, loc['latitude'], loc['longitude'], loc['altitude'], loc['timezone'])
     df['am'] = air_mass(df, loc['altitude'])
     df['dni_extra'] = pvlib.irradiance.extraradiation(df.index)
     df['ghi'] = data['global']
     if 'dhi' not in data.columns:
-        pressure = pvlib.atmosphere.alt2pres(altitude)
+        pressure = pvlib.atmosphere.alt2pres(loc['altitude'])
         df['dni'] = pvlib.irradiance.dirint(df['ghi'], df['apparent_zenith'], df.index, pressure=pressure, temp_dew=None)
+        df['dhi'] = df['ghi'] - (df['dni'] * numpy.sin(df['apparent_elevation']))
     else:
         df['dhi'] = data['dhi']
         df['dni'] = (df['ghi'] - df['dhi']) / numpy.sin(df['apparent_elevation'])
@@ -218,8 +220,7 @@ def relative_luminance(theta, phi, aw_sky):
 
 
 def relative_irradiance(theta, phi, aw_sky):
+    """ the relative fraction of global horizontal irradiance incomming from a sky element"""
     if numpy.cos(theta) <= 0:
         return numpy.array([0] * len(aw_sky))
-    if numpy.sin(theta) == 0:
-        return relative_luminance(theta, phi, aw_sky)
-    return relative_luminance(theta, phi, aw_sky) / numpy.sin(theta)
+    return relative_luminance(theta, phi, aw_sky) / numpy.cos(theta)

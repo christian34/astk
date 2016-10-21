@@ -6,13 +6,10 @@ Created on Wed Apr 24 14:29:15 2013
 """
 
 import pandas
-import numpy
-import pytz
 from datetime import datetime, timedelta
-from math import exp
-
 from alinea.astk.meteorology.variables import meteorological_variables
 from alinea.astk.meteorology.sky_irradiance import actual_sky_irradiances
+from alinea.astk.meteorology.sun_position import sun_position
 from alinea.astk.TimeControl import *
 import alinea.astk.sun_and_sky as sunsky
 
@@ -106,7 +103,7 @@ class Weather(object):
 
 
     def date_range(self, start=None, end=None, step=24):
-        """ A wrapper to pandas date_range adapted to weather data
+        """ A wrapper to pandas date_range adapted to freq of weather data
         """
         if end is not None:
             step = None
@@ -168,7 +165,6 @@ class Weather(object):
 
         return data.loc[:, selection]
 
-
     def sky_irradiances(self, start, end=None, step=24):
         # hack : find a way to test if a variable is there or not
         data = self.get(start, end, step,['GHI', 'Tdew'])
@@ -183,24 +179,14 @@ class Weather(object):
                                    after=t + timedelta(hours=time_step - 1)) for
                 t in tstep]
 
-    def sun_path(self, seq, azimuth_origin='North'):
+    def sun_position(self, start, end=None, step=24, filter_night=True):
         """ Return position of the sun corresponing to a sequence of date
         """
-        data = self.get_weather(seq)
-        hUTC = data.index.hour + data.index.minute / 60.
-        dayofyear = data.index.dayofyear
-        latitude = self.localisation['latitude']
-        longitude = self.localisation['longitude']
-        data['sun_elevation'] = sunsky.sun_elevation(hUTC, dayofyear, longitude,
-                                                     latitude)
-        data['sun_azimuth'] = sunsky.sun_azimuth(hUTC, dayofyear, longitude,
-                                                 latitude,
-                                                 origin=azimuth_origin)
-        data['sun_irradiance'] = sunsky.sun_irradiance(hUTC, dayofyear,
-                                                       longitude, latitude)
-        data['sun_ground_irradiance'] = sun_clear_sky_direct_normal_irradiance(
-            hUTC, dayofyear, longitude, latitude, 'horizontal')
-        return data
+        seq = self.date_range(start, end, step)
+        return sun_position(dates=seq, longitude=self.longitude,
+                            latitude=self.latitude, altitude=self.altitude,
+                            method='pvlib', filter_night=filter_night)
+
 
     def light_sources(self, seq, what='global_radiation', sky='turtle46',
                       azimuth_origin='North', irradiance='horizontal',
