@@ -7,6 +7,7 @@ from alinea.astk.sun_and_sky import sun_sky_sources
 from alinea.caribu.CaribuScene import CaribuScene
 from alinea.caribu.light import light_sources
 from alinea.pyratp.interface.ratp_scene import RatpScene
+import time
 
 
 from vplants.fractalysis.light.directLight import scene_irradiance
@@ -42,7 +43,8 @@ ghi = meteo.loc[dates,'global_radiation']
 sun, sky = sun_sky_sources(ghi=ghi, dates=dates, **localisation)
 
 # Caribu
-import time
+
+print 'start caribu...'
 t = time.time()
 light = light_sources(*sun) + light_sources(*sky)
 cs = CaribuScene(mango, light=light, scene_unit='cm')
@@ -51,6 +53,7 @@ res = pandas.DataFrame(agg)
 print 'made in', time.time() - t
 
 # #muslim
+print 'start muslim...'
 t = time.time()
 # permute az, el, irr to el, az, irr
 sun_m = sun[1], sun[0], sun[2]
@@ -61,17 +64,19 @@ print 'made in', time.time() - t
 
 
 #ratp
+print 'start ratp...'
 t = time.time()
-ratp = RatpScene(mango, rleaf=0, rsoil=0, scene_unit='cm', resolution=(0.1, 0.1, 0.1))
-dfv = ratp.do_irradiation(sky_sources=sky, sun_sources=sun, mu=0.8)
+ratp = RatpScene(mango, rleaf=0, rsoil=0, scene_unit='cm', resolution=(0.15, 0.15, 0.15), mu=0.7)
+dfv = ratp.do_irradiation(sky_sources=sky, sun_sources=sun, mu=0.6)
 resr = ratp.scene_lightmap(dfv, 'shape_id')
+dfr = resr.loc[:,('shape_id', 'Area', 'PAR')].set_index('shape_id')
 print 'made in', time.time() - t
 
 # compare
 res = res.rename(columns={'area': 'area_c'})
-df = res.join(resm)
-df.plot('irradiance', 'Ei',xlim=(0,35000), ylim=(0,35000), style='p')
-df.plot('area', 'area_c',xlim=(0,0.2), ylim=(0,0.2), style='p')
+df = res.join(resm).join(dfr)
+df.plot('irradiance', ['Ei', 'PAR'],xlim=(0,35000), ylim=(0,35000), style='p')
+df.plot('area', ['area_c', 'Area'],xlim=(0,0.2), ylim=(0,0.2), style='p')
 
 
 
