@@ -6,6 +6,7 @@ import openalea.plantgl.all as pgl
 from alinea.astk.sun_and_sky import sun_sky_sources
 from alinea.caribu.CaribuScene import CaribuScene
 from alinea.caribu.light import light_sources
+from alinea.pyratp.interface.ratp_scene import RatpScene
 
 
 from vplants.fractalysis.light.directLight import scene_irradiance
@@ -60,7 +61,11 @@ print 'made in', time.time() - t
 
 
 #ratp
-
+t = time.time()
+ratp = RatpScene(mango, rleaf=0, rsoil=0, scene_unit='cm', resolution=(0.1, 0.1, 0.1))
+dfv = ratp.do_irradiation(sky_sources=sky, sun_sources=sun, mu=0.8)
+resr = ratp.scene_lightmap(dfv, 'shape_id')
+print 'made in', time.time() - t
 
 # compare
 res = res.rename(columns={'area': 'area_c'})
