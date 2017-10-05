@@ -2,16 +2,15 @@
 """
 
 import pandas
-
-import alinea.astk.Weather as W ; reload(W)
-from alinea.astk.Weather import Weather
 import openalea.plantgl.all as pgl
+from alinea.astk.sun_and_sky import sun_sky_sources
+from alinea.caribu.CaribuScene import CaribuScene
+from alinea.caribu.light import light_sources
+from alinea.pyratp.interface.ratp_scene import RatpScene
+import time
 
-from math import radians, pi
-#from alinea.adel.astk_interface import AdelWheat
-from vplants.mangosim.util_path import data
 
-from vplants.fractalysis.light.directLight import directionalInterception
+from vplants.fractalysis.light.directLight import scene_irradiance
 
 def reader(data_file='rayostpierre2002.csv'):
     """ reader for mango meteo files """
@@ -27,45 +26,60 @@ def reader(data_file='rayostpierre2002.csv'):
                                  'HR':'relative_humidity'})
     # convert J.cm2.h-1 to W.m-2
     data['global_radiation'] *= (10000. / 3600)
+    index = pandas.DatetimeIndex(data['date']).tz_localize('Indian/Reunion')
+    data = data.set_index(index)
     return data
   
 # a strange mango tree
-mango = pgl.Scene(data('generated_mtg/fruitstructure.bgeom'))  
-# meteo
-weather = Weather(data('environment/rayostpierre2002.csv'), reader=reader, timezone='Indian/Reunion', localisation={'city':'Saint-Pierre', 'latitude':-21.32, 'longitude':55.5})
+mango = pgl.Scene('fruitstructure.bgeom')
+pgl.Viewer.display(mango)
+localisation={'latitude':-21.32, 'longitude':55.5, 'timezone': 'Indian/Reunion'}
+
+meteo = reader()
+
+dates = pandas.date_range(start='2002-09-02', end = '2002-09-15', freq='H',tz='Indian/Reunion')
+ghi = meteo.loc[dates,'global_radiation']
+
+sun, sky = sun_sky_sources(ghi=ghi, dates=dates, **localisation)
+
+# Caribu
+
+print 'start caribu...'
+t = time.time()
+light = light_sources(*sun) + light_sources(*sky)
+cs = CaribuScene(mango, light=light, scene_unit='cm')
+raw, agg = cs.run(direct=True, simplify=True)
+res = pandas.DataFrame(agg)
+print 'made in', time.time() - t
+
+# #muslim
+print 'start muslim...'
+t = time.time()
+# permute az, el, irr to el, az, irr
+sun_m = sun[1], sun[0], sun[2]
+sky_m = sky[1], sky[0], sky[2]
+directions = zip(*sun_m) + zip(*sky_m)
+resm =scene_irradiance(mango, directions, horizontal=True, scene_unit='cm')
+print 'made in', time.time() - t
+
+
+#ratp
+print 'start ratp...'
+t = time.time()
+ratp = RatpScene(mango, rleaf=0, rsoil=0, scene_unit='cm', resolution=(0.15, 0.15, 0.15), mu=0.7)
+dfv = ratp.do_irradiation(sky_sources=sky, sun_sources=sun, mu=0.6)
+resr = ratp.scene_lightmap(dfv, 'shape_id')
+dfr = resr.loc[:,('shape_id', 'Area', 'PAR')].set_index('shape_id')
+print 'made in', time.time() - t
+
+# compare
+res = res.rename(columns={'area': 'area_c'})
+df = res.join(resm).join(dfr)
+df.plot('irradiance', ['Ei', 'PAR'],xlim=(0,35000), ylim=(0,35000), style='p')
+df.plot('area', ['area_c', 'Area'],xlim=(0,0.2), ylim=(0,0.2), style='p')
 
 
 
-# converter for azimuth elevation 
-# az,el are expected in degrees, in the North-clocwise convention
-# In the scene, positive rotations are counter-clockwise
-#north is the angle (degrees, positive counter_clockwise) between X+ and North
-def azel2vect(az, el, north=0):
-  azimuth = radians(north - az)
-  zenith = radians(90 - el)
-  v = -pgl.Vector3(pgl.Vector3.Spherical( 1., azimuth, zenith ) )
-  v.normalize()
-  return v
 
-sky_positions =sunsky.sky_discretisation()
-for one_day in weather.date_range_index('2002-09-02','2002-09-15'):
-  # sun/sky for one day
-  #see weather.date_range_index for generating a list of days
-  sun_irradiance, sky_irradiance = weather.sun_sky(one_day)
-  sun_positions = weather.sun_positions(one_day)
-  incident_energy = lighting.incident_light(model, mango, sun_positions, sun_irradiance
-                                             , sky_positions,
-                   sky_irradiance, sky_type='soc', use_clear_sky=False,
-                   source_type='normal')
 
-  #sun, sky, = weather.light_sources(one_day, 'PPFD', irradiance='normal', scale=1e-6)
-  # sun and sky irradiance are in mol.m-2 (PPFD in micromol.m-2.s-1 * dt (s) * scale)
-  print one_day[0],
-  print len(sun['irradiance'])
-  #print sun
-  directions =zip(sun['azimuth'],sun['elevation'], sun['irradiance']) #+ zip(sky['azimuth'],sky['elevation'], sky['irradiance'])  
-
-  res = directionalInterception(mango, directions, azel2vect = azel2vect)
-
-  print res
 
