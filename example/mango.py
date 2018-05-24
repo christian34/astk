@@ -84,7 +84,7 @@ if with_fractalysis:
     sun_m = sun[1], sun[0], sun[2]
     sky_m = sky[1], sky[0], sky[2]
     directions = zip(*sun_m) + zip(*sky_m)
-    dfm =scene_irradiance(mango, directions, horizontal=True, scene_unit='cm', screenwidth = 1000)
+    defm =scene_irradiance(mango, directions, horizontal=True, scene_unit='cm', screenwidth = 1000)
     print 'made in', time.time() - t
 
     def mplot( scene, scproperty, display = True):
