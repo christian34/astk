@@ -13,9 +13,9 @@ except ImportError, ie:
 
 try:
     from vplants.fractalysis.light.directLight import scene_irradiance
-    with_muslim = True
+    with_fractalysis = True
 except ImportError, ie:
-    with_muslim = False
+    with_fractalysis = False
 
 try:
     from alinea.pyratp.interface.ratp_scene import RatpScene
@@ -45,7 +45,9 @@ def reader(data_file='rayostpierre2002.csv'):
     return data
   
 # a strange mango tree
-mango = pgl.Scene('fruitstructure.bgeom')
+
+#mango = pgl.Scene('mango0.bgeom')
+mango = pgl.Scene('consolidated_mango3d-gc.bgeom')
 pgl.Viewer.display(mango)
 localisation={'latitude':-21.32, 'longitude':55.5, 'timezone': 'Indian/Reunion'}
 
@@ -54,28 +56,48 @@ meteo = reader()
 dates = pandas.date_range(start='2002-09-02', end = '2002-09-03', freq='H',tz='Indian/Reunion')
 ghi = meteo.loc[dates,'global_radiation']
 
-sun, sky = sun_sky_sources(ghi=ghi, dates=dates, **localisation)
+sun, sky = sun_sky_sources(ghi=ghi, dates=dates, normalisation = 1, **localisation)
+
+view = False
 
 # Caribu
 if with_caribu:
     print 'start caribu...'
     t = time.time()
+    print 'Create light source'
     light = light_sources(*sun) + light_sources(*sky)
+    print 'Convert scene for caribu'
     cs = CaribuScene(mango, light=light, scene_unit='cm')
+    print 'Run caribu'
     raw, agg = cs.run(direct=True, simplify=True)
     res = pandas.DataFrame(agg)
     print 'made in', time.time() - t
+    if view : 
+        cs.plot(agg['Ei'])
 
+with_fractalysis = False
 # #muslim
-if with_muslim:
-    print 'start muslim...'
+if with_fractalysis:
+    print 'start fractalysis ...'
     t = time.time()
     # permute az, el, irr to el, az, irr
     sun_m = sun[1], sun[0], sun[2]
     sky_m = sky[1], sky[0], sky[2]
     directions = zip(*sun_m) + zip(*sky_m)
-    defm =scene_irradiance(mango, directions, horizontal=True, scene_unit='cm', screenwidth = 1000)
+    dfm =scene_irradiance(mango, directions, horizontal=True, scene_unit='cm', screenwidth = 1000)
     print 'made in', time.time() - t
+
+    def mplot( scene, scproperty, display = True):
+        from openalea.plantgl.scenegraph.colormap import PglMaterialMap
+        nscene = Scene()
+        cm = PglMaterialMap(min(scproperty.values()), max(scproperty.values()))
+        for sh in scene:
+            nscene.add(Shape(sh.geometry, cm(scproperty[sh.id]), sh.id))
+        if display:
+            Viewer.display(nscene)
+        return nscene
+    d = dict(zip(list(defm.index), defm['irradiance']))
+    mplot(mango, d)
 
 
 #ratp
